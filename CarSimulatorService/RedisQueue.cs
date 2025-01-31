@@ -73,7 +73,7 @@ public class RedisQueue
     {
         try
         {
-            var messages = await _db.StreamReadGroupAsync(_streamKey, consumerGroup, consumerName, batchSize);
+            var messages = await _db.StreamReadGroupAsync(_streamKey, consumerGroup, consumerName, ">", batchSize);
             return messages.Length > 0 ? messages : null;
         }
         catch (RedisException ex)
@@ -86,7 +86,7 @@ public class RedisQueue
     public async Task AcknowledgeMessageAsync(string consumerGroup, string messageId)
     {
         await _db.StreamAcknowledgeAsync(_streamKey, consumerGroup, messageId);
-        _logger.Information("Acknowledged message {messageId}", messageId);
+        _logger.Information("✅ Acknowledged message {MessageId}", messageId);
     }
 
     public async Task CreateConsumerGroupAsync(string consumerGroup)
@@ -118,7 +118,8 @@ public class RedisQueue
                     var newestMessage = await GetNewestMessageId();
 
                     // Execute raw Redis command: XTRIM <stream> MINID <minId>
-                    var removedCount = (long?)await _db.ExecuteAsync("XTRIM", _streamKey, "MINID", minId) ?? 0;
+                    //var removedCount = (long?)await _db.ExecuteAsync("XTRIM", _streamKey, "MINID", minId) ?? 0;
+                    var removedCount = await _db.StreamTrimAsync(_streamKey, maxLength: 10);
 
                     // Log after trimming
                     var afterTrim = await _db.StreamLengthAsync(_streamKey);

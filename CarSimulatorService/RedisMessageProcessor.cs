@@ -32,7 +32,11 @@ public class RedisMessageProcessor(
     {
         var messages = await redisQueue.ReadMessagesAsync(ConsumerGroup, _consumerName, 10);
 
-        if (messages == null) return;
+        if (messages == null)
+        {
+            logger.LogWarning("No new messages found in Redis stream.");
+            return;
+        }
 
         foreach (var message in messages)
         {
