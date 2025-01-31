@@ -1,4 +1,5 @@
 ﻿using CarSimulatorService;
+using Prometheus;
 using Serilog;
 
 var builder = Host.CreateApplicationBuilder(args);
@@ -21,13 +22,16 @@ builder.Services.AddSingleton<RedisQueue>();
 builder.Services.AddHostedService<CarSimulatorWorker>();
 builder.Services.AddHostedService<RedisMessageProcessor>();
 
+var server = new MetricServer(port: 9100);
+server.Start();
+
 var host = builder.Build();
 
 // Ensure Logs flush on shutdown
 try
 {
     Log.Information("Starting CarSimulationService...");
-    Log.Fatal("🚨 Critical: Phew this is just a test!");
+    // Log.Fatal("🚨 Critical: Phew this is just a test!");
 
     host.Run();
 }
@@ -37,5 +41,7 @@ catch (Exception ex)
 }
 finally
 {
+    server.Stop();
+    server.Dispose();
     Log.CloseAndFlush();
 }

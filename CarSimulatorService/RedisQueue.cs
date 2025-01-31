@@ -1,4 +1,5 @@
-﻿using Serilog;
+﻿using Prometheus;
+using Serilog;
 using StackExchange.Redis;
 using ILogger = Serilog.ILogger;
 
@@ -8,6 +9,7 @@ public class RedisQueue
 {
     private readonly IDatabase _db;
     private readonly ILogger _logger = Log.ForContext<RedisQueue>();
+
     private readonly string _streamKey;
     private readonly int _trimIntervalSeconds;
 
@@ -28,8 +30,30 @@ public class RedisQueue
             throw; // Ensure the service fails to start if redis is unavailable
         }
 
-        // Start background trimming task with configurable interval
+        // Start background monitoring and trimming tasks
+        Task.Run(async () => await MonitorQueueSize());
         Task.Run(async () => await PeriodicTrim());
+    }
+
+    private async Task MonitorQueueSize()
+    {
+        while (true)
+        {
+            try
+            {
+                var queueSize = await _db.StreamLengthAsync(_streamKey);
+                _queueSizeMetric.Set(queueSize);
+                _logger.Information("Redis queue size: {QueueSize}", queueSize);
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Failed to retrieve Redis queue size.");
+            }
+
+            await Task.Delay(TimeSpan.FromSeconds(10));
+        }
+
+        // ReSharper disable once FunctionNeverReturns
     }
 
     public async Task EnqueueMessageAsync(string message)
@@ -78,9 +102,6 @@ public class RedisQueue
         }
     }
 
-    /// <summary>
-    ///     Periodically trims the Redis stream to remove messages older than 24 hours.
-    /// </summary>
     private async Task PeriodicTrim()
     {
         while (true)
@@ -101,6 +122,7 @@ public class RedisQueue
 
                     // Log after trimming
                     var afterTrim = await _db.StreamLengthAsync(_streamKey);
+                    _trimmedMessagesMetric.Inc(removedCount);
                     _logger.Information(
                         "Trimmed {removedCount} old messages. Before: {beforeTrim}, After: {afterTrim}", removedCount,
                         beforeTrim, afterTrim);
@@ -118,9 +140,6 @@ public class RedisQueue
         // ReSharper disable once FunctionNeverReturns
     }
 
-    /// <summary>
-    ///     Gets the Redis stream ID corresponding to 24 hours ago.
-    /// </summary>
     // ReSharper disable once MemberCanBeMadeStatic.Local
     private string GetMinStreamId()
     {
@@ -140,4 +159,15 @@ public class RedisQueue
         var newest = await _db.StreamRangeAsync(_streamKey, "-", "+", 1, Order.Descending);
         return (newest.Length > 0 ? newest[0].Id : "N/A")!;
     }
+
+    #region [ Prometheus settings ]
+
+    // Prometheus metrics
+    private readonly Gauge _queueSizeMetric =
+        Metrics.CreateGauge("redis_queue_size", "Current size of Redis stream queue.");
+
+    private readonly Counter _trimmedMessagesMetric =
+        Metrics.CreateCounter("redis_trimmed_messages", "Number of messages trimmed from Redis stream.");
+
+    #endregion
 }
