@@ -27,6 +27,7 @@ var host = builder.Build();
 try
 {
     Log.Information("Starting CarSimulationService...");
+    Log.Fatal("🚨 Critical: Phew this is just a test!");
 
     host.Run();
 }
