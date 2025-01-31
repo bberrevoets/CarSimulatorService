@@ -108,28 +108,12 @@ public class RedisQueue
         {
             try
             {
-                var minId = GetMinStreamId();
-
-                if (!string.IsNullOrEmpty(minId))
-                {
-                    // Log before trimming
-                    var beforeTrim = await _db.StreamLengthAsync(_streamKey);
-                    var oldestMessage = await GetOldestMessageId();
-                    var newestMessage = await GetNewestMessageId();
-
-                    // Execute raw Redis command: XTRIM <stream> MINID <minId>
-                    //var removedCount = (long?)await _db.ExecuteAsync("XTRIM", _streamKey, "MINID", minId) ?? 0;
-                    var removedCount = await _db.StreamTrimAsync(_streamKey, maxLength: 10);
+                    var removedCount = await _db.StreamTrimAsync(_streamKey, maxLength: 100);
 
                     // Log after trimming
                     var afterTrim = await _db.StreamLengthAsync(_streamKey);
                     _trimmedMessagesMetric.Inc(removedCount);
-                    _logger.Information(
-                        "Trimmed {removedCount} old messages. Before: {beforeTrim}, After: {afterTrim}", removedCount,
-                        beforeTrim, afterTrim);
-                    _logger.Information("Oldest remaining message: {oldestMessage}, Newest: {newestMessage}",
-                        oldestMessage, newestMessage);
-                }
+                    _logger.Information("Trimmed {RemovedCount} messages from Redis stream.", removedCount);
             }
             catch (Exception ex)
             {
