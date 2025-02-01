@@ -6,19 +6,19 @@ public class CarSimulatorWorker : BackgroundService
 {
     private readonly ILogger<CarSimulatorWorker> _logger;
 
-    private readonly RedisQueue _redisQueue;
+    private readonly IRedisQueue _redisQueue;
 
     private readonly GeoCoordinate[] _route;
     private double _currentDirection;
     private int _currentPosition;
-    private double _currentSpeed;
-    private const double TargetSpeed = 50.0;
+    public double CurrentSpeed;
+    public double TargetSpeed = 50.0;
     private const double AccelerationRate = 2.5; // km/h per second
     private const double DecelerationRate = 4.0; // km/h per second
 
     private static readonly Random Random = new Random();
 
-    public CarSimulatorWorker(ILogger<CarSimulatorWorker> logger, RedisQueue redisQueue)
+    public CarSimulatorWorker(ILogger<CarSimulatorWorker> logger, IRedisQueue redisQueue)
     {
         _logger = logger;
         _redisQueue = redisQueue;
@@ -57,7 +57,7 @@ public class CarSimulatorWorker : BackgroundService
         AdjustSpeed();
 
         double travelTime = 10.0;
-        double distanceToMove = (_currentSpeed / 3.6) * travelTime;
+        double distanceToMove = (CurrentSpeed / 3.6) * travelTime;
 
         if (distanceToMove >= distance)
         {
@@ -75,19 +75,19 @@ public class CarSimulatorWorker : BackgroundService
         _currentDirection = GetDirection(currentLocation, nextLocation);
     }
 
-    private void AdjustSpeed()
+    public void AdjustSpeed()
     {
-        double speedDifference = TargetSpeed - _currentSpeed;
+        double speedDifference = TargetSpeed - CurrentSpeed;
 
         if (Math.Abs(speedDifference) < 0.5) return;
 
         if (speedDifference > 0)
         {
-            _currentSpeed += Math.Min(AccelerationRate, speedDifference);
+            CurrentSpeed += Math.Min(AccelerationRate, speedDifference);
         }
         else
         {
-            _currentSpeed += Math.Max(-DecelerationRate, speedDifference);
+            CurrentSpeed += Math.Max(-DecelerationRate, speedDifference);
         }
     }
 
@@ -99,13 +99,13 @@ public class CarSimulatorWorker : BackgroundService
         var currentLocation = _route[_currentPosition];
         var nextLocation = _route[(_currentPosition + 1) % _route.Length];
 
-        _currentSpeed = GetSpeedBetween(currentLocation, nextLocation);
+        CurrentSpeed = GetSpeedBetween(currentLocation, nextLocation);
         _currentDirection = GetDirection(currentLocation, nextLocation);
         _currentPosition++;
 
         var timestamp = DateTime.UtcNow.ToString("o"); // ISO 8601 UTC timestamp
         return
-            $"{{\"timestamp\": \"{timestamp}\", \"lat\": {currentLocation.Latitude}, \"lng\": {currentLocation.Longitude}, \"speed\": {_currentSpeed}, \"direction\": {_currentDirection}}}";
+            $"{{\"timestamp\": \"{timestamp}\", \"lat\": {currentLocation.Latitude}, \"lng\": {currentLocation.Longitude}, \"speed\": {CurrentSpeed}, \"direction\": {_currentDirection}}}";
     }
 
     private double GetSpeedBetween(GeoCoordinate start, GeoCoordinate end)
@@ -114,7 +114,7 @@ public class CarSimulatorWorker : BackgroundService
         return distance / 1000 * 3.6;
     }
 
-    private double GetDirection(GeoCoordinate start, GeoCoordinate end)
+    public double GetDirection(GeoCoordinate start, GeoCoordinate end)
     {
         var deltaX = end.Longitude - start.Longitude;
         var deltaY = end.Latitude - start.Latitude;

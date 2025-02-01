@@ -5,7 +5,7 @@ using ILogger = Serilog.ILogger;
 
 namespace CarSimulatorService;
 
-public class RedisQueue
+public class RedisQueue : IRedisQueue
 {
     private readonly IDatabase _db;
     private readonly ILogger _logger = Log.ForContext<RedisQueue>();
@@ -125,27 +125,7 @@ public class RedisQueue
         // ReSharper disable once FunctionNeverReturns
     }
 
-    // ReSharper disable once MemberCanBeMadeStatic.Local
-    private string GetMinStreamId()
-    {
-        var minTimestamp = DateTime.UtcNow.AddHours(-24);
-        var unixMillis = ((DateTimeOffset)minTimestamp).ToUnixTimeMilliseconds();
-        return $"{unixMillis}-0";
-    }
-
-    private async Task<string> GetOldestMessageId()
-    {
-        var oldest = await _db.StreamRangeAsync(_streamKey, "-", "+", 1);
-        return (oldest.Length > 0 ? oldest[0].Id : "N/A")!;
-    }
-
-    private async Task<string> GetNewestMessageId()
-    {
-        var newest = await _db.StreamRangeAsync(_streamKey, "-", "+", 1, Order.Descending);
-        return (newest.Length > 0 ? newest[0].Id : "N/A")!;
-    }
-
-    #region [ Prometheus settings ]
+    #region [ Prometheus Variables ]
 
     // Prometheus metrics
     private readonly Gauge _queueSizeMetric =

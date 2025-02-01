@@ -17,7 +17,9 @@ var carSimulatorSettings = builder.Configuration.GetSection("CarSimulator").Get<
                            new CarSimulationSettings();
 
 builder.Services.AddSingleton(carSimulatorSettings);
-builder.Services.AddSingleton<RedisQueue>();
+
+builder.Services.AddSingleton<IRedisQueue, RedisQueue>();
+builder.Services.AddSingleton<ITcpClientWrapper, TcpClientWrapper>();
 
 builder.Services.AddHostedService<CarSimulatorWorker>();
 builder.Services.AddHostedService<RedisMessageProcessor>();
